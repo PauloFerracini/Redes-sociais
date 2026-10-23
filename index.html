@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7c3aed">
+  <title>Postador</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topo">
+    <h1>Postador</h1>
+    <p class="sub">Crie, agende e publique nas suas redes sociais</p>
+  </header>
+
+  <nav class="abas" role="tablist">
+    <button class="aba ativa" data-aba="criar">Criar</button>
+    <button class="aba" data-aba="agenda">Agenda <span id="n-agenda" class="badge" hidden></span></button>
+    <button class="aba" data-aba="publicados">Publicados</button>
+    <button class="aba" data-aba="ajustes">Ajustes</button>
+  </nav>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main>
+    <!-- CRIAR -->
+    <section id="criar" class="painel ativo">
+      <form id="form-post" class="card" novalidate>
+        <h2 id="titulo-editor">Novo post</h2>
+
+        <fieldset class="escolha">
+          <legend>Onde publicar</legend>
+          <div id="escolha-redes" class="filtros"></div>
+        </fieldset>
+
+        <label>Texto
+          <textarea name="texto" rows="7" placeholder="Escreva seu post…"></textarea>
+        </label>
+        <div id="contadores" class="contadores"></div>
+        <div id="atalho-hashtags" class="filtros"></div>
+
+        <label class="midia-escolher" id="midia-area">
+          <input type="file" name="midia" accept="image/*,video/*" hidden>
+          <span id="midia-conteudo">📷 Adicionar foto ou vídeo</span>
+        </label>
+        <button type="button" class="btn sec peq" id="midia-remover" hidden>Remover mídia</button>
+
+        <div class="grade">
+          <label>Data <input type="date" name="data"></label>
+          <label>Hora <input type="time" name="hora"></label>
+        </div>
+
+        <p id="form-erro" class="erro" hidden></p>
+        <div class="botoes">
+          <button class="btn" type="submit" id="btn-salvar">Salvar rascunho</button>
+          <button class="btn sec" type="button" id="btn-agora">Publicar agora</button>
+          <button class="btn sec" type="button" id="btn-cancelar" hidden>Cancelar edição</button>
+        </div>
+      </form>
+
+      <div class="card">
+        <h2>Prévia</h2>
+        <div id="previas" class="previas"></div>
+      </div>
+    </section>
+
+    <!-- AGENDA -->
+    <section id="agenda" class="painel">
+      <div id="lista-agenda"></div>
+    </section>
+
+    <!-- PUBLICADOS -->
+    <section id="publicados" class="painel">
+      <div id="lista-publicados"></div>
+    </section>
+
+    <!-- AJUSTES -->
+    <section id="ajustes" class="painel">
+      <form id="form-perfil" class="card">
+        <h2>Seu perfil</h2>
+        <p class="muted">Usado só nas prévias dos posts.</p>
+        <div class="grade">
+          <label>Nome <input name="nome" maxlength="50"></label>
+          <label>Usuário <input name="usuario" maxlength="30" placeholder="sem o @"></label>
+        </div>
+        <button class="btn" type="submit">Salvar perfil</button>
+      </form>
+
+      <div class="card">
+        <h2>Grupos de hashtags</h2>
+        <p class="muted">Salve as hashtags que você usa sempre e insira com um toque no editor.</p>
+        <form id="form-hashtags" class="grade">
+          <label>Nome do grupo <input name="nome" placeholder="Ex.: Viagem" required maxlength="30"></label>
+          <label>Hashtags <input name="tags" placeholder="#viagem #ferias #praia" required></label>
+          <button class="btn" type="submit">Adicionar grupo</button>
+        </form>
+        <ul id="lista-hashtags" class="lista"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Lembretes</h2>
+        <p class="muted">Com o app aberto, ele avisa quando chegar a hora de cada post. Para ser lembrado com o app fechado, adicione os posts à agenda do celular.</p>
+        <div class="botoes">
+          <button class="btn sec" type="button" id="btn-notificacoes">Ativar notificações</button>
+          <button class="btn sec" type="button" id="btn-ics-todos">Adicionar agendados à agenda (.ics)</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Backup</h2>
+        <p class="muted">Os posts ficam salvos só neste navegador. Exporte um backup para não perder nada ou para levar a outro aparelho.</p>
+        <div class="botoes">
+          <button class="btn sec" type="button" id="btn-exportar">Exportar backup</button>
+          <label class="btn sec" id="btn-importar">Importar backup <input type="file" accept="application/json,.json" hidden></label>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="dlg-publicar">
+    <div class="modal-corpo">
+      <button class="fechar" type="button" aria-label="Fechar">×</button>
+      <div id="publicar-corpo"></div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <p class="aviso">Sem cadastro e sem servidor: seus posts ficam salvos neste navegador.</p>
+
+  <script src="redes.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
