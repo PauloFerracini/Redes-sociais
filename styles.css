@@ -181,6 +181,9 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 .pub-rede h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .pub-rede p { margin: 0 0 10px; font-size: .85rem; color: var(--muted); }
 .pub-rede.feito h3::after { content: "✓ publicado"; margin-left: auto; font-size: .8rem; color: var(--verde); }
+.pub-midia { margin-bottom: 12px; }
+.pub-midia img, .pub-midia video { max-height: 240px; border-radius: 10px; display: block; margin: 0 auto 6px; }
+.pub-midia p { font-size: .8rem; margin: 0; text-align: center; }
 .check { flex-direction: row; align-items: center; gap: 8px; color: var(--txt); margin: 0; font-size: .9rem; }
 .check input { width: 18px; height: 18px; accent-color: var(--primaria); }
 

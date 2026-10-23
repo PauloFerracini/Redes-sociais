@@ -59,6 +59,9 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const novoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const tamanho = s => [...s].length;
 const hojeIso = () => new Date().toLocaleDateString('sv-SE'); // AAAA-MM-DD no fuso local
+// Aberto dentro de outra página (como o link do Claude): downloads, notificações e o
+// compartilhamento nativo ficam bloqueados, então o app usa alternativas.
+const emFrame = (() => { try { return window.self !== window.top; } catch { return true; } })();
 
 // ---------- Estado ----------
 let posts = store.get('posts', []);
@@ -355,7 +358,6 @@ async function duplicar(id) {
 }
 
 async function excluir(id) {
-  if (!confirm('Excluir este post?')) return;
   posts = posts.filter(x => x.id !== id);
   await midias.del(id);
   limparMiniatura(id);
@@ -388,7 +390,7 @@ function cartaoPost(p) {
         ${completo(p) ? '' : `<button class="btn peq" data-acao="publicar" data-id="${p.id}">Publicar</button>`}
         <button class="btn sec peq" data-acao="editar" data-id="${p.id}">Editar</button>
         <button class="btn sec peq" data-acao="duplicar" data-id="${p.id}">Duplicar</button>
-        ${p.quando && !completo(p) ? `<button class="btn sec peq" data-acao="ics" data-id="${p.id}">Lembrete</button>` : ''}
+        ${p.quando && !completo(p) && !emFrame ? `<button class="btn sec peq" data-acao="ics" data-id="${p.id}">Lembrete</button>` : ''}
         <button class="btn sec peq perigo" data-acao="excluir" data-id="${p.id}">Excluir</button>
       </div>
     </div>
@@ -432,7 +434,13 @@ function renderListas() {
     if (acao === 'publicar') abrirPublicar(id);
     else if (acao === 'editar') editar(id);
     else if (acao === 'duplicar') duplicar(id);
-    else if (acao === 'excluir') excluir(id);
+    else if (acao === 'excluir') {
+      // Pede um segundo toque para confirmar, sem caixa de diálogo do navegador.
+      if (b.dataset.confirmar) return excluir(id);
+      b.dataset.confirmar = '1';
+      b.textContent = 'Toque de novo para excluir';
+      setTimeout(() => { if (b.isConnected) { delete b.dataset.confirmar; b.textContent = 'Excluir'; } }, 4000);
+    }
     else if (acao === 'ics') baixarIcs(posts.filter(x => x.id === id));
   }));
   carregarMiniaturas();
@@ -468,7 +476,9 @@ async function abrirPublicar(id) {
   if (!p) return;
   const blob = p.temMidia ? await midias.get(id) : null;
   const arquivo = blob ? new File([blob], `post-${p.id}.${extensao(blob)}`, { type: blob.type }) : null;
-  const podeCompartilhar = !!(arquivo && navigator.canShare && navigator.canShare({ files: [arquivo] }));
+  const podeCompartilhar = !emFrame && !!(arquivo && navigator.canShare && navigator.canShare({ files: [arquivo] }));
+  const urlMidia = blob && emFrame ? URL.createObjectURL(blob) : null;
+  dlg.addEventListener('close', () => urlMidia && URL.revokeObjectURL(urlMidia), { once: true });
 
   function render() {
     $('#publicar-corpo').innerHTML = `
@@ -476,9 +486,10 @@ async function abrirPublicar(id) {
       <p class="muted">Toque na rede para abrir a publicação. Depois de enviar, marque como publicado.</p>
       <div class="botoes" style="margin-bottom:14px">
         <button class="btn sec peq" data-pub="copiar">Copiar texto</button>
-        ${blob ? '<button class="btn sec peq" data-pub="baixar">Baixar mídia</button>' : ''}
+        ${blob && !emFrame ? '<button class="btn sec peq" data-pub="baixar">Baixar mídia</button>' : ''}
         ${podeCompartilhar ? '<button class="btn sec peq" data-pub="compartilhar">Compartilhar mídia e texto</button>' : ''}
       </div>
+      ${urlMidia ? `<div class="pub-midia">${tagMidia(blob, urlMidia, 'controls')}<p class="muted">Para salvar a mídia no aparelho, toque e segure (ou clique com o botão direito) e escolha salvar.</p></div>` : ''}
       ${p.redes.map(r => {
         const R = REDES[r];
         const feito = publicadoEm(p, r);
@@ -487,7 +498,7 @@ async function abrirPublicar(id) {
           <p>${esc(R.dica)}</p>
           ${contar(p.texto, r) > R.limite ? `<p class="erro">O texto passa do limite de ${R.limite} caracteres desta rede.</p>` : ''}
           <div class="botoes">
-            <button class="btn peq" data-abrir="${r}">Abrir ${esc(R.nome)}</button>
+            <a class="btn peq" href="${esc(R.intent ? R.intent(p.texto) : R.abrir)}" target="_blank" rel="noopener" data-abrir="${r}">Abrir ${esc(R.nome)}</a>
             <label class="check"><input type="checkbox" data-feito="${r}" ${feito ? 'checked' : ''}> Publicado</label>
           </div>
         </div>`;
@@ -497,7 +508,7 @@ async function abrirPublicar(id) {
     corpo.querySelector('[data-pub="copiar"]').addEventListener('click', () => copiar(p.texto).then(ok => toast(ok ? 'Texto copiado.' : 'Não foi possível copiar.')));
     corpo.querySelector('[data-pub="baixar"]')?.addEventListener('click', () => baixar(blob, arquivo.name));
     corpo.querySelector('[data-pub="compartilhar"]')?.addEventListener('click', () => compartilhar());
-    corpo.querySelectorAll('[data-abrir]').forEach(b => b.addEventListener('click', () => abrirRede(b.dataset.abrir)));
+    corpo.querySelectorAll('[data-abrir]').forEach(a => a.addEventListener('click', e => abrirRede(a.dataset.abrir, e)));
     corpo.querySelectorAll('[data-feito]').forEach(c => c.addEventListener('change', () => {
       if (c.checked) p.publicado[c.dataset.feito] = new Date().toISOString();
       else delete p.publicado[c.dataset.feito];
@@ -512,20 +523,19 @@ async function abrirPublicar(id) {
     navigator.share({ files: [arquivo], text: p.texto }).catch(() => { /* cancelado */ });
   }
 
-  function abrirRede(r) {
+  // O link abre a rede em outra aba; o clique também copia a legenda e entrega a mídia.
+  function abrirRede(r, evento) {
     const R = REDES[r];
-    // Tudo aqui roda no mesmo clique: o navegador só deixa abrir janelas e compartilhar assim.
     copiar(p.texto);
     if (blob && podeCompartilhar && !R.intent) {
+      evento.preventDefault();
       compartilhar();
       toast('Legenda copiada. Escolha o app e cole o texto.');
     } else if (R.intent) {
-      window.open(R.intent(p.texto), '_blank', 'noopener');
-      if (blob) toast('Texto preenchido. Use “Baixar mídia” para anexar a foto.');
+      if (blob) toast(emFrame ? 'Texto preenchido. Salve a mídia acima para anexar.' : 'Texto preenchido. Use “Baixar mídia” para anexar a foto.');
     } else {
-      if (blob) baixar(blob, arquivo.name);
-      window.open(R.abrir, '_blank', 'noopener');
-      toast(blob ? 'Legenda copiada e mídia baixada. Crie o post e cole o texto.' : 'Texto copiado. Cole na publicação.');
+      if (blob && !emFrame) baixar(blob, arquivo.name);
+      toast(blob ? (emFrame ? 'Legenda copiada. Salve a mídia acima e crie o post.' : 'Legenda copiada e mídia baixada. Crie o post e cole o texto.') : 'Texto copiado. Cole na publicação.');
     }
   }
 
@@ -635,6 +645,10 @@ $('#btn-exportar').addEventListener('click', async () => {
     if (blob) arquivos[p.id] = await paraDataUrl(blob);
   }
   const dados = { app: 'postador', versao: 1, exportado: new Date().toISOString(), posts, ajustes, midias: arquivos };
+  if (emFrame) {
+    const ok = await copiar(JSON.stringify(dados));
+    return toast(ok ? 'Backup copiado. Cole num arquivo de texto e salve como .json.' : 'Não foi possível copiar o backup.');
+  }
   baixar(new Blob([JSON.stringify(dados)], { type: 'application/json' }), `postador-backup-${hojeIso()}.json`);
 });
 
@@ -645,14 +659,16 @@ $('#btn-importar input').addEventListener('change', async e => {
   let dados;
   try { dados = JSON.parse(await arquivo.text()); } catch { return toast('Arquivo de backup inválido.'); }
   if (!dados || dados.app !== 'postador' || !Array.isArray(dados.posts)) return toast('Este arquivo não é um backup do Postador.');
-  if (!confirm(`Importar ${dados.posts.length} posts? Os posts atuais serão substituídos.`)) return;
-  for (const p of posts) await midias.del(p.id);
-  urlsMiniatura.forEach(m => URL.revokeObjectURL(m.url));
-  urlsMiniatura.clear();
-  posts = dados.posts.filter(p => p && p.id && Array.isArray(p.redes)).map(p => ({ ...p, publicado: p.publicado || {}, redes: p.redes.filter(r => REDES[r]) }));
-  for (const [id, url] of Object.entries(dados.midias || {})) {
-    try { await midias.set(id, await (await fetch(url)).blob()); } catch { /* mídia corrompida */ }
+  const existentes = new Set(posts.map(p => p.id));
+  const novos = dados.posts
+    .filter(p => p && p.id && Array.isArray(p.redes) && !existentes.has(p.id))
+    .map(p => ({ ...p, publicado: p.publicado || {}, redes: p.redes.filter(r => REDES[r]) }));
+  for (const p of novos) {
+    const url = (dados.midias || {})[p.id];
+    if (!url) continue;
+    try { await midias.set(p.id, await (await fetch(url)).blob()); } catch { p.temMidia = false; }
   }
+  posts.push(...novos);
   ajustes = Object.assign({ nome: 'Seu nome', usuario: 'seuusuario', grupos: [] }, dados.ajustes || {});
   salvarAjustes();
   formPerfil.nome.value = ajustes.nome;
@@ -660,10 +676,15 @@ $('#btn-importar input').addEventListener('change', async e => {
   limparEditor();
   renderGrupos();
   salvarPosts();
-  toast('Backup importado.');
+  toast(novos.length ? `${novos.length} posts importados.` : 'Esses posts já estavam no app.');
 });
 
 // ---------- Início ----------
+if (emFrame) {
+  ['#btn-notificacoes', '#btn-ics-todos'].forEach(s => { $(s).hidden = true; });
+  $('#txt-lembretes').textContent = 'Enquanto o app estiver aberto, um aviso aparece no topo quando chegar a hora de cada post.';
+  $('#btn-exportar').textContent = 'Copiar backup';
+}
 redesEscolhidas = redesEscolhidas.filter(r => REDES[r]);
 renderEscolhaRedes();
 renderGrupos();
